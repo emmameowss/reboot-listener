@@ -7,7 +7,7 @@ import discord
 
 
 API_URL = "https://rebootradio.uk/v3/api/stats"
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "3600"))
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
 
@@ -22,12 +22,12 @@ class PresenterWatcher(discord.Client):
     def __init__(self) -> None:
         super().__init__(intents=discord.Intents.none())
         self.channel_id = int(CHANNEL_ID) if CHANNEL_ID else None
-        self.http: aiohttp.ClientSession | None = None
+        self.http_session: aiohttp.ClientSession | None = None
         self.poll_task: asyncio.Task | None = None
         self.presenter_name: str | None = None
 
     async def setup_hook(self) -> None:
-        self.http = aiohttp.ClientSession(
+        self.http_session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=15),
             headers={"User-Agent": "RebootPresenterWatcher/1.0"},
         )
@@ -42,9 +42,9 @@ class PresenterWatcher(discord.Client):
             self.poll_task = asyncio.create_task(self.watch_presenter())
 
     async def fetch_presenter(self) -> str:
-        if self.http is None:
+        if self.http_session is None:
             raise RuntimeError("HTTP session is not initialized")
-        async with self.http.get(API_URL) as response:
+        async with self.http_session.get(API_URL) as response:
             response.raise_for_status()
             payload = await response.json()
         name = payload.get("presenter", {}).get("name")
@@ -79,8 +79,8 @@ class PresenterWatcher(discord.Client):
     async def close(self) -> None:
         if self.poll_task is not None:
             self.poll_task.cancel()
-        if self.http is not None and not self.http.closed:
-            await self.http.close()
+        if self.http_session is not None and not self.http_session.closed:
+            await self.http_session.close()
         await super().close()
 
 
